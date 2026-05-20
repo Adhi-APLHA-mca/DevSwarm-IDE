@@ -6,7 +6,9 @@
   "homepage": "./",
   "type": "module",
   "scripts": {
-    "dev": "npm run build:main && concurrently \"npm run dev:electron\" \"npm run dev:vite\"",
+    "dev": "npm run build:main && concurrently \"python backend/api_server.py\" \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "backend": "python backend/api_server.py",
+    "frontend": "vite",
     "dev:vite": "vite",
     "dev:electron": "wait-on http://localhost:5173 && electron .",
     "build:main": "tsc src/main.ts src/preload.ts --outDir dist --module commonjs --target es2020 --skipLibCheck --allowSyntheticDefaultImports --esModuleInterop --moduleResolution node --declaration false && move dist\\main.js dist\\main.cjs && move dist\\preload.js dist\\preload.cjs",

@@ -73,22 +73,13 @@ class BusinessAnalystAgent:
         self.memory = memory
         self.message_history = []
         self.system_prompt = SystemMessage(
-            content="""You are an expert Business Analyst. Your job is to:
-1. Understand client requirements thoroughly
-2. Ask clarifying questions
-3. Identify hidden requirements and constraints
-4. Generate clear, actionable requirement documents
+            content="""You are an Expert Business Analyst. Your role is to:
+1. Ask intelligent clarifying questions to understand customer needs
+2. Dig deep to uncover hidden requirements and constraints
+3. Think about technical feasibility, business goals, and user needs
+4. Ask questions that help define scope, timeline, budget, and success metrics
 
-Always be thorough. Ask about:
-- Target users and use cases
-- Platform requirements (web, mobile, both)
-- Performance and scalability needs
-- Security and compliance
-- Budget and timeline constraints
-- Integration requirements
-- Admin/management needs
-
-Respond in JSON format with structured data."""
+When the customer describes what they want to build, your job is to ask the RIGHT questions to fully understand their vision. Be specific and actionable. Generate questions as a JSON array."""
         )
         self.requirements_summary = None
         self.functional_reqs = None
@@ -101,52 +92,47 @@ Respond in JSON format with structured data."""
         additional_context: Optional[str] = None
     ) -> List[str]:
         """
-        Generate clarifying questions for the client
-        Returns list of questions to ask user
+        Invoke LLM (Groq/Llama) as Business Analyst to generate clarifying questions
+        Based on customer's project goal
         """
-        initial_prompt = f"""Client Goal: {client_goal}
-Additional Context: {additional_context or "None"}
+        # Create BA prompt
+        ba_prompt = f"""Customer wants to build: {client_goal}
 
-Generate 10 important clarifying questions I should ask the client:
-1. Who are the target users?
-2. Is this for Web, Mobile, or Both?
-3. Expected user base size?
-4. Need authentication/login?
-5. Admin dashboard needed?
-6. Any integrations (payment, email, SMS)?
-7. Timeline and budget constraints?
-8. Performance requirements (response time)?
-9. Data privacy/compliance needs?
-10. Key business metrics/success criteria?
+{f'Additional context: {additional_context}' if additional_context else ''}
 
-Format response as JSON with:
-{{"questions": ["question1", "question2", "question3", ...]}}"""
+Generate 8-10 specific, clarifying questions that will help you understand:
+- What exactly they're building
+- Who will use it
+- Technical requirements
+- Timeline and constraints
+- Success criteria
 
+Respond ONLY as JSON array: ["Question 1?", "Question 2?", ...]"""
+
+        # Reset message history
         self.message_history = [self.system_prompt]
-        self.message_history.append(HumanMessage(content=initial_prompt))
+        self.message_history.append(HumanMessage(content=ba_prompt))
 
+        # Invoke LLM to generate questions
         response = await self.llm.ainvoke(self.message_history)
         self.message_history.append(AIMessage(content=response.content))
 
-        # Parse questions from response
+        # Parse questions from LLM response
         parsed = self._parse_json_response(response.content)
-        questions = parsed.get("questions", [
-            "Who are the target users?",
-            "Is this for Web, Mobile, or Both?",
-            "Expected user base (100, 1K, 10K, 1M+)?",
-            "Need authentication/login?",
-            "Admin dashboard needed?",
-            "Any integrations needed?",
-            "Timeline constraints?",
-            "Budget constraints?",
-            "Performance requirements?",
-            "Compliance needs (GDPR, HIPAA, PCI-DSS)?"
-        ])
+        
+        # Handle different response formats
+        if isinstance(parsed, list):
+            questions = parsed
+        elif isinstance(parsed, dict) and "questions" in parsed:
+            questions = parsed["questions"]
+        else:
+            # Last resort: ask LLM to retry
+            raise ValueError(f"Failed to parse questions from LLM response: {response.content}")
 
         # Store in memory
         if self.memory:
             self.memory.long_term.add(
-                content=f"Business Analysis initiated for: {client_goal}",
+                content=f"Business Analysis initiated for: {client_goal}\nGenerated {len(questions)} questions via LLM",
                 tags=["business_analysis", "requirements", "initial"],
                 importance=0.95,
                 agent="BusinessAnalyst"
@@ -188,7 +174,7 @@ Format response as JSON with:
         client_answers: Dict[str, str]
     ) -> RequirementsSummary:
         """
-        Process client's answers to clarifying questions
+        Process client's answers dynamically using Groq/Llama
         Validates and consolidates into structured requirements
         """
         # Format answers nicely
@@ -197,21 +183,22 @@ Format response as JSON with:
             for q, a in client_answers.items()
         ])
         
-        answers_prompt = f"""The client provided these answers to my questions:
+        answers_prompt = f"""Analyze the client's answers and create a comprehensive REQUIREMENTS SUMMARY.
 
+Client Answers:
 {formatted_answers}
 
-Based on these answers, create a comprehensive REQUIREMENTS SUMMARY with:
-1. Client Goal (what they want to build)
-2. Target Users (who will use it)
-3. Business Domain (type of business/application)
-4. Platform Type (web/mobile/both/desktop)
-5. Key Features needed
-6. Timeline and Budget constraints
-7. Performance and scalability expectations
-8. Security and compliance needs
+Extract and understand:
+1. What they want to build (client goal)
+2. Who will use it (target users)
+3. Type of application (business domain)
+4. Platform needs (web/mobile/both/desktop)
+5. Must-have features
+6. Timeline and budget
+7. Performance expectations
+8. Security and compliance
 
-Format as JSON:
+Respond ONLY as JSON:
 {{
   "client_goal": "...",
   "target_users": "...",
@@ -240,28 +227,24 @@ Format as JSON:
 
     async def extract_functional_requirements(self) -> FunctionalRequirements:
         """
-        Extract detailed functional requirements from gathered info
+        Extract detailed functional requirements dynamically using Groq/Llama
         """
         if not self.requirements_summary:
             raise ValueError("Call process_client_answers() first")
 
-        prompt = f"""Based on the requirements:
+        prompt = f"""Based on these requirements, intelligently categorize functional requirements:
 {json.dumps(asdict(self.requirements_summary), indent=2)}
 
-Extract and categorize FUNCTIONAL REQUIREMENTS into:
-1. Core Features (main functionality)
-2. User Management (login, profile, permissions)
-3. Admin Features (management, monitoring, reporting)
-4. Integrations (payment, email, external APIs)
-5. Additional Features (nice-to-have, future)
+Think about what features are truly core vs optional for THIS specific project.
+Categorize features based on the actual business need, not generic categories.
 
 Format as JSON:
 {{
-  "core_features": [...],
-  "user_management": [...],
-  "admin_features": [...],
-  "integrations": [...],
-  "additional_features": [...]
+  "core_features": ["Feature 1", "Feature 2", ...],
+  "user_management": ["Auth type needed", ...],
+  "admin_features": ["What admins need", ...],
+  "integrations": ["External services needed", ...],
+  "additional_features": ["Nice-to-have items", ...]
 }}"""
 
         self.message_history.append(HumanMessage(content=prompt))
@@ -289,36 +272,29 @@ Format as JSON:
 
     async def extract_nonfunctional_requirements(self) -> NonFunctionalRequirements:
         """
-        Extract performance, security, and scalability requirements
+        Extract performance, security, and scalability requirements dynamically
+        Uses Groq/Llama to intelligently determine what's important for this project
         """
         if not self.requirements_summary:
             raise ValueError("Call process_client_answers() first")
 
-        prompt = f"""Based on the requirements:
+        prompt = f"""Analyze and extract NON-FUNCTIONAL requirements appropriate for this project:
 {json.dumps(asdict(self.requirements_summary), indent=2)}
 
-Extract NON-FUNCTIONAL REQUIREMENTS:
-1. Expected user base (100, 1K, 10K, 1M+)
-2. Expected traffic volume (low/medium/high)
-3. API response time requirements
-4. Uptime SLA (99.9%, 99.5%, etc.)
-5. Security level needed (basic/medium/high)
-6. Data storage requirements (MB/GB/TB)
-7. Authentication method (basic/OAuth/SSO)
-8. Compliance needs (GDPR, HIPAA, PCI-DSS, etc.)
-9. Performance requirements (caching, CDN, etc.)
+Think about what performance, security, and scalability needs matter for THIS project specifically.
+Don't apply generic requirements - think about the real constraints.
 
 Format as JSON:
 {{
-  "expected_users": "...",
-  "expected_traffic": "...",
-  "response_time": "...",
-  "uptime_sla": "...",
-  "security_level": "...",
-  "data_storage": "...",
-  "authentication": "...",
-  "compliance": [...],
-  "performance_requirements": {{...}}
+  "expected_users": "realistic estimate",
+  "expected_traffic": "low/medium/high",
+  "response_time": "milliseconds or description",
+  "uptime_sla": "percentage if needed",
+  "security_level": "what's actually needed",
+  "data_storage": "realistic estimate",
+  "authentication": "what makes sense",
+  "compliance": ["applicable regulations"],
+  "performance_requirements": {{"description": "details"}}
 }}"""
 
         self.message_history.append(HumanMessage(content=prompt))
@@ -350,40 +326,38 @@ Format as JSON:
 
     async def analyze_risks(self) -> RiskAnalysis:
         """
-        Identify and categorize risks based on requirements
+        Identify and categorize risks dynamically using Groq/Llama
+        Analyzes what could realistically go wrong for this specific project
         """
         if not self.requirements_summary or not self.functional_reqs:
             raise ValueError("Call process_client_answers() and extract_functional_requirements() first")
 
-        prompt = f"""Analyze risks for this project:
+        prompt = f"""Analyze realistic risks for this specific project:
 
-Requirements Summary:
+Requirements:
 {json.dumps(asdict(self.requirements_summary), indent=2)}
 
 Functional Requirements:
 {json.dumps(asdict(self.functional_reqs), indent=2)}
 
-Non-Functional Requirements:
+Non-Functional:
 {json.dumps(asdict(self.nonfunctional_reqs), indent=2) if self.nonfunctional_reqs else {}}
 
-Identify and categorize risks:
-1. HIGH RISKS (critical, could derail project)
-2. MEDIUM RISKS (important, needs mitigation)
-3. LOW RISKS (monitor but manageable)
-4. CRITICAL BLOCKERS (deal-breakers)
+Think deeply about what could go wrong SPECIFICALLY for this project:
+- Technical risks (scalability, performance, integration issues)
+- Business risks (market changes, timeline pressure)
+- Team/resource risks
+- Data and security risks
+- Integration/third-party risks
 
-For each risk, provide:
-- Risk description
-- Potential impact
-- Mitigation strategy
-- Severity level
+Provide realistic risks with mitigation strategies.
 
 Format as JSON:
 {{
-  "high_risks": [{{"risk": "...", "impact": "...", "mitigation": "..."}}],
-  "medium_risks": [{{"risk": "...", "impact": "...", "mitigation": "..."}}],
-  "low_risks": [{{"risk": "...", "impact": "...", "mitigation": "..."}}],
-  "critical_blockers": ["blocker1", "blocker2"]
+  "high_risks": [{{"risk": "description", "impact": "what happens", "mitigation": "how to prevent"}}],
+  "medium_risks": [...],
+  "low_risks": [...],
+  "critical_blockers": ["must-solve problems"]
 }}"""
 
         self.message_history.append(HumanMessage(content=prompt))
