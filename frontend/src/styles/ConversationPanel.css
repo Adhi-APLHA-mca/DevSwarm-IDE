@@ -231,3 +231,124 @@
 .message-question .message-content {
   background: linear-gradient(135deg, #2a3a50 0%, #324557 100%);
 }
+
+/* Markdown rendering styles */
+.markdown-content {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.markdown-content h1 {
+  color: #58a6ff;
+  font-size: 1.8em;
+  margin: 16px 0 8px 0;
+  border-bottom: 2px solid #3a5070;
+  padding-bottom: 8px;
+}
+
+.markdown-content h2 {
+  color: #79c0ff;
+  font-size: 1.4em;
+  margin: 12px 0 6px 0;
+  border-bottom: 1px solid #3a5070;
+  padding-bottom: 4px;
+}
+
+.markdown-content h3 {
+  color: #a0d8ff;
+  font-size: 1.2em;
+  margin: 10px 0 4px 0;
+}
+
+.markdown-content p {
+  color: #d0e8ff;
+  line-height: 1.6;
+  margin: 8px 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  color: #d0e8ff;
+  margin: 8px 0 8px 20px;
+}
+
+.markdown-content li {
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+.markdown-content code {
+  background: #0f1419;
+  color: #79c0ff;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.markdown-content pre {
+  background: #0f1419;
+  border-left: 3px solid #5ba3d0;
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.markdown-content pre code {
+  background: none;
+  color: #79c0ff;
+  padding: 0;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid #5ba3d0;
+  padding-left: 12px;
+  margin-left: 0;
+  margin-right: 0;
+  color: #a0d8ff;
+  font-style: italic;
+  opacity: 0.9;
+}
+
+.markdown-content table {
+  border-collapse: collapse;
+  margin: 12px 0;
+  width: 100%;
+  border: 1px solid #3a5070;
+}
+
+.markdown-content th {
+  background: #1a3a52;
+  color: #79c0ff;
+  padding: 10px;
+  text-align: left;
+  border: 1px solid #3a5070;
+  font-weight: 600;
+}
+
+.markdown-content td {
+  padding: 8px 10px;
+  border: 1px solid #3a5070;
+  color: #d0e8ff;
+}
+
+.markdown-content tr:nth-child(even) {
+  background: rgba(26, 58, 82, 0.3);
+}
+
+.markdown-content a {
+  color: #79c0ff;
+  text-decoration: none;
+}
+
+.markdown-content a:hover {
+  text-decoration: underline;
+  color: #a0d8ff;
+}
+
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid #3a5070;
+  margin: 12px 0;
+}

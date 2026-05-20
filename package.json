@@ -18,12 +18,14 @@
     "lint": "eslint . --ext .ts,.tsx"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.5.0",
+    "axios": "^1.6.0",
+    "lucide-react": "^0.263.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@monaco-editor/react": "^4.5.0",
+    "react-markdown": "^10.1.0",
     "reactflow": "^11.10.0",
-    "lucide-react": "^0.263.1",
-    "axios": "^1.6.0"
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

@@ -52,6 +52,7 @@ export default function App() {
   const [showAgentSelector, setShowAgentSelector] = useState(true);
   const [conversationStarted, setConversationStarted] = useState(false);
   const [projectGoal, setProjectGoal] = useState<string>('');
+  const [allAnswers, setAllAnswers] = useState<{ [key: number]: string }>({});
 
   const activeFile = openFiles.find(f => f.id === activeFileId);
 
@@ -230,6 +231,12 @@ export default function App() {
       // Submit answer to backend
       const response = await apiClient.submitAnswer(currentQuestionIndex, answer);
 
+      // Track the answer
+      setAllAnswers((prev) => ({
+        ...prev,
+        [currentQuestionIndex]: answer
+      }));
+
       // Check if all questions are answered
       if (response.is_complete) {
         const completeMsg: Message = {
@@ -244,8 +251,13 @@ export default function App() {
         // Process requirements
         const reqResponse = await apiClient.processRequirements();
         
-        // Generate CEO development plan
-        const devPlan = await apiClient.generateDevelopmentPlan(reqResponse.requirements, projectGoal);
+        // Generate CEO development plan with Q&A context
+        const devPlan = await apiClient.generateDevelopmentPlan(
+          reqResponse.requirements, 
+          projectGoal,
+          currentQuestions,
+          { ...allAnswers, [currentQuestionIndex]: answer } // Include the final answer
+        );
         
         const ceoMsg: Message = {
           id: Date.now() + '-ceo-plan',
