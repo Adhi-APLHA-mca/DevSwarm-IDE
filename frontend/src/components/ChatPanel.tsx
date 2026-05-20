@@ -1,15 +1,24 @@
-import '../styles/ChatPanel.css';
+import "../styles/ChatPanel.css";
+import { useState } from "react";
 
 export default function ChatPanel() {
+  const [message, setMessage] = useState("");
+
   return (
-    <div className="panel-content chat-panel">
-      <div className="chat-placeholder">
-        <h3>Chat Interface</h3>
-        <p>Backend integration coming soon!</p>
-        <p className="chat-info">
-          This panel will connect to the Python backend via WebSocket/HTTP for
-          AI-powered code assistance and workflow management.
-        </p>
+    <div className="chat-panel">
+      <div className="chat-box">
+        <button className="icon-btn">+</button>
+
+        <input
+          type="text"
+          placeholder="Describe what to build"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+        />
+
+        <button className="icon-btn">🎤</button>
+
+        <button className="send-btn">↑</button>
       </div>
     </div>
   );
