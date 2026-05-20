@@ -1,0 +1,33 @@
+.chat-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.chat-placeholder {
+  text-align: center;
+  color: #6e7681;
+}
+
+.chat-placeholder h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: #c9d1d9;
+}
+
+.chat-placeholder p {
+  margin: 8px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.chat-info {
+  color: #2d9934;
+  font-style: italic;
+  margin-top: 16px !important;
+  padding: 12px;
+  background-color: rgba(45, 153, 52, 0.1);
+  border-left: 2px solid #2d9934;
+  border-radius: 4px;
+}

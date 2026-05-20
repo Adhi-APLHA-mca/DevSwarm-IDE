@@ -1,0 +1,25 @@
+.editor-welcome {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+}
+
+.welcome-content {
+  text-align: center;
+  color: #8b949e;
+}
+
+.welcome-content h1 {
+  font-size: 48px;
+  margin: 0 0 16px 0;
+  color: #58a6ff;
+  font-weight: 700;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.welcome-content p {
+  margin: 8px 0;
+  font-size: 16px;
+}
