@@ -27,6 +27,10 @@ class MemoryEntry(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     importance_score: float = 0.5  # 0-1, for prioritization
     tags: List[str] = Field(default_factory=list)
+    # Phase 1: Metadata for future search upgrades
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    agent: str = ""  # Which agent stored this
+    project: str = ""  # Which project
 
 
 class ShortTermMemory:
@@ -96,16 +100,18 @@ class LongTermMemory:
         self.learnings: Dict[str, Any] = {}
         self.load()
     
-    def add(self, content: str, memory_type: MemoryType, metadata: Dict = None, 
-            tags: List[str] = None, importance: float = 0.5):
+    def add(self, content: str, metadata: Dict = None, tags: List[str] = None, importance: float = 0.5,
+            agent: str = "", project: str = ""):
         """Add entry to long-term memory"""
         entry = MemoryEntry(
             id=f"lt_{len(self.entries)}_{datetime.now().timestamp()}",
             content=content,
-            memory_type=memory_type,
+            memory_type=MemoryType.LONG_TERM,
             metadata=metadata or {},
             importance_score=importance,
-            tags=tags or []
+            tags=tags or [],
+            agent=agent,
+            project=project
         )
         self.entries.append(entry)
         self.save()
@@ -193,19 +199,20 @@ class AgentMemory:
         }
     
     def remember_task(self, task_description: str, solution: str, success: bool, 
-                     metadata: Dict = None):
+                     metadata: Dict = None, agent: str = "", project: str = ""):
         """
         Remember completed task for future reference
         """
         entry_id = self.long_term.add(
             content=f"Task: {task_description}\nSolution: {solution}",
-            memory_type=MemoryType.EPISODIC,
             metadata={
                 "success": success,
                 "task_description": task_description,
                 **(metadata or {})
             },
             tags=["task", "completed"],
-            importance=0.8 if success else 0.5
+            importance=(0.8 if success else 0.5),
+            agent=agent,
+            project=project
         )
         return entry_id

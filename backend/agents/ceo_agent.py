@@ -9,11 +9,11 @@ from enum import Enum
 import json
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
-from langchain_core.language_model import BaseLLM
 from pydantic import BaseModel, Field
 
 from memory.memory_system import AgentMemory, MemoryType
 from tools.toolkit import Toolkit
+from agents.business_analyst import BusinessAnalystAgent
 
 
 class TaskStatus(str, Enum):
@@ -62,13 +62,16 @@ class CEOAgent:
     - Resolve conflicts
     """
     
-    def __init__(self, llm: BaseLLM, toolkit: Toolkit = None):
+    def __init__(self, llm: Any, toolkit: Toolkit = None):
         self.llm = llm
         self.toolkit = toolkit or Toolkit()
         self.memory = AgentMemory()
         self.roadmap: Optional[Roadmap] = None
         self.message_history: List[BaseMessage] = []
         self.agents: Dict[str, Any] = {}  # Registry of available agents
+        
+        # Initialize specialized agents
+        self.business_analyst = BusinessAnalystAgent(llm=llm, memory=self.memory)
         
         # System prompt for CEO
         self.system_prompt = SystemMessage(content="""
@@ -100,6 +103,9 @@ Decision-making principles:
         """
         Analyze client prompt and extract requirements
         """
+        if not self.message_history:
+            self.message_history.append(self.system_prompt)
+        
         self.message_history.append(HumanMessage(content=f"""
 Analyze this client request and extract:
 1. Main objective
@@ -114,10 +120,7 @@ Client Request:
 Provide structured analysis in JSON format.
 """))
         
-        response = await self.llm.ainvoke(
-            self.message_history,
-            system=self.system_prompt
-        )
+        response = await self.llm.ainvoke(self.message_history)
         
         self.message_history.append(response)
         
@@ -128,56 +131,77 @@ Provide structured analysis in JSON format.
             importance=0.9
         )
         
+        self.memory.long_term.add(
+            content=f"Analyzed prompt: {client_prompt[:100]}",
+            tags=["analysis", "prompt"],
+            importance=0.9,
+            agent="CEO"
+        )
+        
         return self._parse_json_response(response.content)
     
     async def create_roadmap(self, analysis: Dict[str, Any]) -> Roadmap:
         """
         Create detailed project roadmap
         """
+        # Extract objective from analysis
+        objective = analysis.get("main_objective") or analysis.get("objective") or "Development Project"
+        
         self.message_history.append(HumanMessage(content=f"""
-Based on this analysis, create a detailed project roadmap:
-{json.dumps(analysis, indent=2)}
+Based on this analysis, create a detailed project roadmap with 5-7 concrete tasks.
 
-Create roadmap with:
-1. Clear phases (Planning, Setup, Development, Testing, Deployment)
-2. Specific tasks for each phase
-3. Dependencies between tasks
-4. Estimated effort per task
-5. Risk assessment
+Analysis: {json.dumps(analysis, indent=2)}
 
-Output as JSON roadmap structure.
+Create roadmap in JSON format with this exact structure:
+{{
+    "tasks": [
+        {{"description": "Task 1 description", "priority": 5, "dependencies": []}},
+        {{"description": "Task 2 description", "priority": 5, "dependencies": []}},
+        ...
+    ]
+}}
+
+Each task must have: description, priority (1-5), and dependencies list.
 """))
         
-        response = await self.llm.ainvoke(
-            self.message_history,
-            system=self.system_prompt
-        )
+        response = await self.llm.ainvoke(self.message_history)
         
         self.message_history.append(response)
         
         # Parse and create Roadmap
         roadmap_data = self._parse_json_response(response.content)
         
+        tasks_list = roadmap_data.get("tasks", [])
+        if not tasks_list:
+            # Fallback: generate tasks from analysis
+            tasks_list = [
+                {"description": "Setup project structure and environment", "priority": 5, "dependencies": []},
+                {"description": "Implement core functionality", "priority": 5, "dependencies": ["Setup"]},
+                {"description": "Add error handling and validation", "priority": 4, "dependencies": ["Implement"]},
+                {"description": "Write unit tests", "priority": 4, "dependencies": ["Implement"]},
+                {"description": "Documentation and examples", "priority": 3, "dependencies": ["Tests"]},
+            ]
+        
         self.roadmap = Roadmap(
-            client_prompt=analysis.get("original_prompt", ""),
-            objective=analysis.get("objective", ""),
+            client_prompt="",
+            objective=objective,
             tasks=[
                 Task(
                     id=f"task_{i}",
-                    description=task.get("description", ""),
+                    description=task.get("description", f"Task {i+1}"),
                     priority=task.get("priority", 1),
                     dependencies=task.get("dependencies", [])
                 )
-                for i, task in enumerate(roadmap_data.get("tasks", []))
+                for i, task in enumerate(tasks_list)
             ]
         )
         
         # Store in memory
         self.memory.long_term.add(
             content=f"Created roadmap for: {self.roadmap.objective}",
-            memory_type=MemoryType.SEMANTIC,
             tags=["roadmap", "planning"],
-            importance=0.95
+            importance=0.95,
+            agent="CEO"
         )
         
         return self.roadmap
@@ -247,10 +271,7 @@ Suggest resolution with:
 4. Risk assessment
 """))
         
-        response = await self.llm.ainvoke(
-            self.message_history,
-            system=self.system_prompt
-        )
+        response = await self.llm.ainvoke(self.message_history)
         
         self.message_history.append(response)
         
@@ -273,18 +294,90 @@ Suggest resolution with:
     def _parse_json_response(self, response_text: str) -> Dict[str, Any]:
         """Extract JSON from LLM response"""
         import json
+        import re
+        
         try:
             # Try to find JSON in response
             if "```json" in response_text:
-                json_str = response_text.split("```json")[1].split("```")[0]
+                json_str = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                json_str = response_text.split("```")[1].split("```")[0].strip()
             elif "{" in response_text:
                 start = response_text.find("{")
                 end = response_text.rfind("}") + 1
                 json_str = response_text[start:end]
             else:
+                print(f"No JSON found in response: {response_text[:100]}")
                 return {}
+            
+            # Clean up common issues
+            json_str = json_str.replace('\n', ' ')
+            json_str = re.sub(r',\s*}', '}', json_str)  # Remove trailing commas
+            json_str = re.sub(r',\s*]', ']', json_str)  # Remove trailing commas in arrays
             
             return json.loads(json_str)
         except Exception as e:
             print(f"Error parsing JSON response: {e}")
+            print(f"Attempted to parse: {response_text[:200]}")
             return {}
+    
+    async def gather_business_requirements(
+        self, 
+        client_goal: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Use Business Analyst Agent to deeply understand requirements
+        Interactive mode - asks user questions and processes answers
+        
+        Args:
+            client_goal: Optional pre-defined goal. If None, prompts user for input
+        
+        Returns:
+            Complete requirements document (summary, functional, non-functional, risks)
+        """
+        # Get client goal from user if not provided
+        if not client_goal:
+            print("\n" + "="*70)
+            print("🎯 TELL ME YOUR PROJECT GOAL")
+            print("="*70 + "\n")
+            client_goal = input("What do you want to build? ").strip()
+            if not client_goal:
+                print("❌ No goal provided. Aborting.")
+                return {}
+        
+        # Step 1: BA asks questions interactively and collects user answers
+        print("\n🔄 Starting Business Analysis...\n")
+        client_answers = await self.business_analyst.ask_questions_interactively(client_goal)
+        
+        if not client_answers:
+            print("\n❌ No answers provided. Cannot proceed.")
+            return {}
+        
+        # Step 2: Process answers into structured requirements
+        print("\n⚙️  Processing your answers...")
+        summary = await self.business_analyst.process_client_answers(client_answers)
+        
+        # Step 3: Extract all requirement types
+        print("\n📋 Extracting functional requirements...")
+        functional_reqs = await self.business_analyst.extract_functional_requirements()
+        
+        print("\n⚙️  Extracting non-functional requirements...")
+        nonfunctional_reqs = await self.business_analyst.extract_nonfunctional_requirements()
+        
+        print("\n⚠️  Analyzing risks...")
+        risk_analysis = await self.business_analyst.analyze_risks()
+        
+        # Step 4: Generate complete doc
+        print("\n📄 Generating complete requirements document...\n")
+        complete_doc = await self.business_analyst.generate_complete_requirements_doc()
+        
+        # Store in memory
+        self.memory.long_term.add(
+            content=f"Business requirements gathered: {len(functional_reqs.core_features)} core features",
+            tags=["business_analysis", "requirements", "complete"],
+            importance=0.95,
+            agent="CEO",
+            project=client_goal[:30]
+        )
+        
+        return complete_doc

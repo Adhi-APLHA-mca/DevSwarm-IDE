@@ -41,7 +41,7 @@ async def main():
     print(f"  API Key: {groq_api_key[:10]}...")
     
     llm = ChatGroq(
-        model="mixtral-8x7b-32768",  # Fast and capable model
+        model="gpt-4o-mini",
         temperature=0.7,
         groq_api_key=groq_api_key
     )
